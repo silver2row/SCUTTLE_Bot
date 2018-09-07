@@ -11,6 +11,7 @@ import motor_control
 import compass
 import hcsr04
 import encoder
+import math
 
 DATA_UPDATE_FREQ = 20.0 # Hertz
 
@@ -46,11 +47,13 @@ address = []
 data = []
 data_snt = 13*[0]
 speedL, speedR = 127, 127
-
+i = 0           #dpm working vars
+array = 6*[0]   #dpm working vars
 t0 = time.time()
 
 while 1:
     t1 = time.time()
+    # --- any speed commands from matlab?
     try:
         data, address = s.recvfrom(65536)
     except:
@@ -62,45 +65,58 @@ while 1:
             data, address = s.recvfrom(65536)
         except:
             break
+    # --- 
+    # --- did we reach 10ms? yes, send data to MATLAB
     if ((t1-t0) >= (1.0/DATA_UPDATE_FREQ)): # send data every 50 millisecond
         #print(t1-t0)
         t0 = t1
-        if address: # at least on package has to be received before we know where to send!
+        if address: # at least one package has to be received before we know where to send!
             PACKETDATA = struct.pack('%sf' %len(data_snt),*data_snt)
             s.sendto(PACKETDATA, address)
             data = []
+    # --- 
 ## --- write speed to H-bridge
-    print(speedL, speedR)
     motor_control.set_speed(speedL, speedR)
-   # [vDC0, vDC1] = motor_control.read_voltage()
-   # [temp0, temp1] = motor_control.read_temperature()
+    [vDC0, vDC1] = motor_control.read_voltage()
+    [temp0, temp1] = motor_control.read_temperature()
 
 ## --- reading the compass angle
     heading = compass.get_angle(I2Ccompass)
 
 ## --- read pitch and roll
-#    data_imu = imu.read()#read_accel_data()#
+    data_imu = imu.read()#read_accel_data()#
 
 ## --- ultrasonic distance measurement
     distance = hcsr04.distanceMeasurement(trig_pin, echo_pin, GPIO)
+    distance = round(distance,0)
 
 ## --- encoders
-    encoder0, encoder1 = encoder.read_encoders_angle(enc0,enc1)
 
+    encoder0, encoder1 = encoder.read_encoders_angle(enc0,enc1)
+    array[i] = encoder1
+    if i != 0:
+        distance1 = array[i] - array[i-1]
+    if i ==0: 
+        distance1 = array[i] - array[5]
+    #print(time.time())
+    if i == 5:
+        i = 0
+    else:
+        i = i + 1
 ## --- put data in array to send over udp
     data_snt[0] = heading
-    data_snt[1] = 100#vDC0
-    data_snt[2] = 100#vDC1
-    data_snt[3] = 90#temp0
-    data_snt[4] = 90#temp1
+    data_snt[1] = vDC0
+    data_snt[2] = vDC1
+    data_snt[3] = temp0
+    data_snt[4] = temp1
     data_snt[6] = encoder0
     data_snt[7] = encoder1
     #data_snt[8] = speed0
     #data_snt[9] = speed1
     data_snt[10] = distance
-    #data_snt[11] = data_imu['tb'][0] # pitch
-    #data_snt[12] = data_imu['tb'][1] # roll
+    data_snt[11] = data_imu['tb'][0] # pitch
+    data_snt[12] = data_imu['tb'][1] # roll
+    print(round(data_snt[11],4))
 ## ---
 # close the socket (UDP connection)
 s.close()
-
