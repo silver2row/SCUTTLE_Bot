@@ -1,3 +1,4 @@
+#functions for reading external compass
 import numpy as np
 
 
