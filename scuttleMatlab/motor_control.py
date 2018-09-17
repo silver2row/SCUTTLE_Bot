@@ -1,11 +1,22 @@
 import serial
 import time
 
-ser = serial.Serial(port = "/dev/ttyS1", baudrate=9600, timeout=1) 
+import rcpy                 # use rcpy for h bridge driver
+import rcpy.motor as motor  
+
+Motor_X = 1  #used only for hbridge device
+Motor_Y = 2
+
+ser = serial.Serial(port = "/dev/ttyS1", baudrate=9600, timeout=1)
+
+rcpy.set_state(rcpy.RUNNING) #used only for hbridge device
 
 def set_speed(speedL, speedR):
-    ser.write([0xFF, 0x0D, speedL])
+    ser.write([0xFF, 0x0D, speedL])  #pololu commands
     ser.write([0xFF, 0x00, speedR])
+
+    motor.set(Motor_X, ((speedL-127)/127))  #h bridge commands
+    motor.set(Motor_Y, ((speedR-127)/127)) 
 
 
 def read_voltage():
